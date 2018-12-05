@@ -1,0 +1,16 @@
+module zvn (
+    input a[16],
+    input b[16],
+    input alufn[6],
+    input outer[16],
+    output z,
+    output v,
+    output n
+  ) {
+
+  always {
+    z = ~|outer;
+    v = (a[15] & !outer[15] & (b[15] ^ alufn[0]))  | (!a[15] & outer[15] & !(b[15] ^ alufn[0]));
+    n =  outer[15];
+  }
+}

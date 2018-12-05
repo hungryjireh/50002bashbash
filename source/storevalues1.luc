@@ -1,0 +1,116 @@
+module storevalues1 (
+    input clk,  // clock
+    input selA[1], //player 1's correct button
+    input selB[1], //player 2's correct button
+    input selAWrongA[1], //player 1's wrong buttons
+    input selAWrongB[1], //player 1's wrong buttons
+    input selBWrongA[1], //player 2's wrong buttons
+    input selBWrongB[1], //player 2's wrong buttons
+    input resetButton[1], //resetButton button
+    output outA[4][4], //output on seven seg LED display
+    output playerscore1[16], //player 1 score
+    output playerscore2[16] //player 2 score
+  ) {
+  
+  sig rst; //reset signal
+
+  alu alu_player1; //alu unit for player 1
+  alu alu_player2; //alu unit for player 2
+  
+  const ADD = 6b000000; //opcode for ADD
+  const SUB = 6b000001; //opcode for SUB
+  
+  .clk(clk) {
+    .rst(rst) {
+      // Define d-latch flip-flops for seven seg display, and player 1 and player 2 scores
+      dff memoryA[4][4](#INIT({4d0, 4d0, 4d0, 4d0})); //initialise as 0000 for seven seg display
+      dff player1score[16](#INIT(16b0)); //initialise as 16b0
+      dff player2score[16](#INIT(16b0)); //initialise as 16b0
+    }
+  }
+    
+  always {
+
+    //by default
+    alu_player1.a = 16b0;
+    alu_player1.b = 16b0;
+    alu_player1.alufn = 6b0;
+    alu_player2.a = 16b0;
+    alu_player2.b = 16b0;
+    alu_player2.alufn = 6b0;
+    
+    if(selA) {
+      alu_player1.a = player1score.q;
+      alu_player1.b = 16b0000000000000001;
+      alu_player1.alufn = ADD;
+      player1score.d = alu_player1.alu;
+      //increment 10's place by one if 1's place is 9
+      if (memoryA.q[2] == 4d9) {
+        memoryA.d[3] = memoryA.q[3] + 4d1;
+        memoryA.d[2] = 4d0;
+      } else {
+        memoryA.d[2] = memoryA.q[2] + 4d1;
+      }
+    }
+    
+    if(selAWrongA || selAWrongB) {
+      //ADD player 2 score
+      alu_player2.a = player2score.q;
+      alu_player2.b = 16b0000000000000001;      
+      alu_player2.alufn = ADD;
+      player2score.d = alu_player2.alu;
+      memoryA.d[0] = memoryA.q[0] + 4d1;
+      //SUB player 1 score
+      if (player1score.q > 16b0) {
+        alu_player1.a = player1score.q;
+        alu_player1.b = 16b0000000000000001;
+        alu_player1.alufn = SUB;
+        player1score.d = alu_player1.alu;
+        memoryA.d[2] = memoryA.q[2] - 4d1;
+      }
+    }
+
+    if (selB) {
+      alu_player2.a = player2score.q;
+      alu_player2.b = 16b0000000000000001;
+      alu_player2.alufn = ADD;
+      player2score.d = alu_player2.alu;
+      //increment 10's place by one if 1's place is 9
+      if (memoryA.q[0] == 4d9) {
+        memoryA.d[1] = memoryA.q[1] + 4d1;
+        memoryA.d[0] = 4d0;
+      } else {
+        memoryA.d[0] = memoryA.q[0] + 4d1;
+      }
+    }
+    
+    if (selBWrongA || selBWrongB) {
+      //ADD player 1 score
+      alu_player1.a = player1score.q;
+      alu_player1.b = 16b0000000000000001;
+      alu_player1.alufn = ADD;
+      player1score.d = alu_player1.alu;
+      memoryA.d[2] = memoryA.q[2] + 4d1;
+      //SUB player 2 score
+      if (player2score.q > 16b0) {
+        alu_player2.a = player2score.q;
+        alu_player2.b = 16b0000000000000001;
+        alu_player2.alufn = SUB;
+        player2score.d = alu_player2.alu;
+        memoryA.d[0] = memoryA.q[0] - 4d1;
+      }
+    }
+    
+    //for resetting game back to original state
+    if (resetButton) {
+      memoryA.d = {4d0, 4d0, 4d0, 4d0};
+      player1score.d = 0;
+      player2score.d = 0;
+    }            
+    
+    // Assign outputs of memory to outputs of A and B
+    outA = memoryA.q;
+    playerscore1 = player1score.q;
+    playerscore2 = player2score.q;
+  }
+}

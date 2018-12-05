@@ -1,0 +1,37 @@
+module cmp16 (
+    input alufn[6],
+    input z,
+    input v,
+    input n,
+    output out[16]
+  ) {
+
+  always {
+    
+    //only LSB changes while all other values remain 0
+    
+    out[15:1] = 0;
+
+    case(alufn[2:1]) {
+
+      2b00:
+        //nothing
+        out[0] = 0;
+        
+      2b01:
+        //when A = B
+        out[0] = z;
+      
+      2b10:
+        //when A < B
+        out[0] = n ^ v;
+      
+      2b11:
+        //when A <= B
+        out[0] = z | (n ^ v);
+        
+     default:
+       out[0] = 0; 
+    }    
+  }
+}
