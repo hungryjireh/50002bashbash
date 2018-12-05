@@ -1,0 +1,69 @@
+module alu (
+    input a[16],
+    input b[16], 
+    input alufn[6], 
+    output z,
+    output v,
+    output n, 
+    output alu[16]    
+  ) {
+  
+  //instantiate modules
+  add16 add16;
+  boole16 boole16;
+  shifter16 shifter16;
+  cmp16 cmp16;
+  zvn zvn;
+
+  always {
+    //assigning inputs into the different modules
+    add16.a = a;
+    add16.b = b;
+    add16.alufn = alufn;    
+    
+    zvn.a = a;
+    zvn.b = b;
+    zvn.alufn = alufn;
+    zvn.outer = add16.outer;
+    z = zvn.z;
+    v = zvn.v;
+    n = zvn.n;
+    
+    boole16.a = a;
+    boole16.b = b;
+    boole16.alufn = alufn;
+    
+    cmp16.alufn = alufn;
+    cmp16.z = zvn.z;
+    cmp16.v = zvn.v;
+    cmp16.n = zvn.n;
+    
+    shifter16.a = a;
+    shifter16.b = b;
+    shifter16.alufn = alufn;
+    
+    // use the two additional control signals ALUFN[5:4] to decide which unit values for ALU output
+    
+    case(alufn[5:4]) {
+      //adder output
+      2b00:
+        alu = add16.out;
+        
+      //boolean output
+      2b01:
+        alu = boole16.out;
+      
+      //shifter output
+      2b10: 
+        alu = shifter16.out;
+      
+      //compare output
+      2b11:
+        alu = cmp16.out;
+        
+      default: 
+        alu = 0;
+    }
+    
+  }
+}

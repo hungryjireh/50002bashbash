@@ -1,0 +1,846 @@
+module mojo_top (
+    input clk,              // 50MHz clock
+    input rst_n,            // reset button (active low)
+    output led [8],         // 8 user controllable LEDs
+    input cclk,             // configuration clock, AVR ready when high
+    output spi_miso,        // AVR SPI MISO
+    input spi_ss,           // AVR SPI Slave Select
+    input spi_mosi,         // AVR SPI MOSI
+    input spi_sck,          // AVR SPI Clock
+    output spi_channel [4], // AVR general purpose pins (used by default to select ADC channel)
+    input avr_tx,           // AVR TX (FPGA RX)
+    output avr_rx,          // AVR RX (FPGA TX)
+    input avr_rx_busy,       // AVR RX buffer full
+    
+    input startbutton, //start button
+    input resetbutton, //reset button
+    input player1a, //player 1's 1st button
+    input player1b, //player 1's 2nd button
+    input player1c, //player 1's 3rd button
+    input player2a, //player 2's 1st button
+    input player2b, //player 2's 2nd button
+    input player2c, //player 2's 3rd button    
+    output io_seg[8], //seven-seg screen
+    output io_sel[4],
+    output led_1a, //output LEDs
+    output led_2a,
+    output led_3a,
+    output led_4a,
+    output led_5a,
+    output led_6a,
+    output led_7a,
+    output led_8a,
+    output led_9a,
+    
+    output led_1b,
+    output led_2b,
+    output led_3b,
+    output led_4b,
+    output led_5b,
+    output led_6b,
+    output led_7b,
+    output led_8b,
+    output led_9b,
+    
+    output led_1c,
+    output led_2c,
+    output led_3c,
+    output led_4c,
+    output led_5c,
+    output led_6c,
+    output led_7c,
+    output led_8c,
+    output led_9c      
+  ) {
+  
+  sig rst; // reset signal
+  
+  alu alu;
+  
+  const CMPEQ = 6b110011; //opcode for CMPEQ
+    
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+    storevalues1 storevalues; //instantiating score module
+
+    edge_detector buttonstart(#RISE(1), #FALL(0));
+    edge_detector buttonreset(#RISE(1), #FALL(0));
+    edge_detector button1a(#RISE(1), #FALL(0));
+    edge_detector button1b(#RISE(1), #FALL(0));
+    edge_detector button1c(#RISE(1), #FALL(0));
+    edge_detector button2a(#RISE(1), #FALL(0));
+    edge_detector button2b(#RISE(1), #FALL(0));
+    edge_detector button2c(#RISE(1), #FALL(0));
+    
+    edge_detector edge_detector(#RISE(1), #FALL(0));
+
+    button_conditioner condbutton1a;
+    button_conditioner condbutton1b;
+    button_conditioner condbutton1c;
+    button_conditioner condbutton2a;
+    button_conditioner condbutton2b;
+    button_conditioner condbutton2c;
+    button_conditioner condstartbutton;
+    button_conditioner condresetbutton;
+    
+    multi_dec_ctr dec_ctr1;
+
+    .rst(rst) {
+      fsm state = {START, SECONDS, TRANSITION, MODESMALLEST, MODEMIDDLE, ONE, TWO, THREE, FOUR, FIVE, FINAL};
+      multi_seven_seg seg;
+      dff roundnumber[3](#INIT(3b000)); //round number: 5 rounds in total, instantiated as 0
+      dff mode[2](#INIT(2b10)); //mode: 3 different modes. Instantiated as mode in which players choose highest number
+      counter ctr1 (#SIZE(1), #DIV(24), #UP(0), #TOP(3)); //counter: to add delay between rounds
+      blinker myBlinker;
+    }
+  }
+  
+  always {
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+    led = 8h00;             // turn LEDs off
+    spi_miso = bz;          // not using SPI
+    spi_channel = bzzzz;    // not using flags
+    avr_rx = bz;            // not using serial port   
+    
+    
+    io_seg = ~seg.seg;
+    io_sel = ~seg.sel;
+    
+    //if unassigned, by default
+    storevalues.selA = 0;
+    storevalues.selAWrongA = 0;
+    storevalues.selAWrongB = 0;
+    storevalues.selB = 0;
+    storevalues.selBWrongA = 0;
+    storevalues.selBWrongB = 0;
+    storevalues.resetButton = 0;
+    
+    //default alu values
+    alu.a = 16b0;
+    alu.b = 16b0; 
+    alu.alufn = 6b0;
+    
+    //default led values
+    led_1a = 0;
+    led_2a = 0;
+    led_3a = 0;
+    led_4a = 0;
+    led_5a = 0;
+    led_6a = 0;
+    led_7a = 0;
+    led_8a = 0;
+    led_9a = 0;
+    
+    led_1b = 0;
+    led_2b = 0;
+    led_3b = 0;
+    led_4b = 0;
+    led_5b = 0;
+    led_6b = 0;
+    led_7b = 0;
+    led_8b = 0;
+    led_9b = 0;
+    
+    led_1c = 0;
+    led_2c = 0;
+    led_3c = 0;
+    led_4c = 0;
+    led_5c = 0;
+    led_6c = 0;
+    led_7c = 0;
+    led_8c = 0;
+    led_9c = 0;
+
+    //initialiser for all buttons
+    condstartbutton.in = startbutton;
+    buttonstart.in = condstartbutton.out;
+    condresetbutton.in = resetbutton;
+    buttonreset.in = condresetbutton.out;
+    condbutton1a.in = player1a;
+    button1a.in = condbutton1a.out;
+    condbutton1b.in = player1b;
+    button1b.in = condbutton1b.out;
+    condbutton1c.in = player1c;
+    button1c.in = condbutton1c.out;
+    condbutton2a.in = player2a;
+    button2a.in = condbutton2a.out;
+    condbutton2b.in = player2b;
+    button2b.in = condbutton2b.out;
+    condbutton2c.in = player2c;
+    button2c.in = condbutton2c.out;
+    
+    //default values for counter
+    dec_ctr1.inc = 0;
+    dec_ctr1.rst = 0;
+    edge_detector.in = 0;   
+
+    case (state.q) {
+      
+      state.START:
+        
+        //start state: players choose their mode of play here
+        
+        led_1a = 1;
+        led_2a = 1;
+        led_3a = 1;
+        led_4a = 1;
+        led_5a = 1;
+        led_6a = 1;
+        led_7a = 1;
+        led_8a = 1;
+        led_9a = 1;        
+        
+        led_1b = 1;
+        led_2b = 1;
+        led_3b = 1;
+        led_4b = 1;
+        led_5b = 1;
+        led_6b = 1;
+        led_7b = 1;
+        led_8b = 1;
+        led_9b = 1;
+        
+        led_1c = 1;
+        led_2c = 1;
+        led_3c = 1;
+        led_4c = 1;
+        led_5c = 1;
+        led_6c = 1;
+        led_7c = 1;
+        led_8c = 1;
+        led_9c = 1;
+        
+        seg.values = {4h0, 4h0, 4h0, 4h0};
+        mode.d = 2b10; //default mode - choose largest       
+
+        //swapping between modes
+        if (buttonstart.out) {
+          state.d = state.TRANSITION;
+        } else if (button1b.out || button2b.out) {
+          state.d = state.MODESMALLEST;
+        } else if (button1c.out || button2c.out) {
+          state.d = state.MODEMIDDLE;
+        }
+      
+      state.MODESMALLEST:
+        mode.d = 2b01; //choose smallest number of LEDs
+        seg.values = {4h1, 4h1, 4h1, 4h1};        
+        
+        //swapping between modes
+        if (buttonstart.out) {
+          state.d = state.TRANSITION;
+        } else if (button1a.out || button2a.out) {
+          state.d = state.START;
+        } else if (button1c.out || button2c.out) {
+          state.d = state.MODEMIDDLE;
+        }
+
+      state.MODEMIDDLE:
+        mode.d = 2b00; //choose in-between number of LEDs
+        seg.values = {4h2, 4h2, 4h2, 4h2};       
+        
+        //swapping between modes
+        if (buttonstart.out) {
+          state.d = state.TRANSITION;
+        } else if (button1a.out || button2a.out) {
+          state.d = state.START;
+        } else if (button1b.out || button2b.out) {
+          state.d = state.MODESMALLEST;
+        }
+          
+      state.TRANSITION:
+        //counter module: counts from 1 to 3 before changing state
+        led_1a = myBlinker.blink;
+        led_2a = ~myBlinker.blink;
+        led_3a = myBlinker.blink;
+        led_4a = ~myBlinker.blink;
+        led_5a = myBlinker.blink;
+        led_6a = ~myBlinker.blink;
+        led_7a = myBlinker.blink;
+        led_8a = ~myBlinker.blink;
+        led_9a = myBlinker.blink;
+        
+        led_1b = myBlinker.blink;
+        led_2b = ~myBlinker.blink;
+        led_3b = myBlinker.blink;
+        led_4b = ~myBlinker.blink;
+        led_5b = myBlinker.blink;
+        led_6b = ~myBlinker.blink;
+        led_7b = myBlinker.blink;
+        led_8b = ~myBlinker.blink;
+        led_9b = myBlinker.blink;
+        
+        led_1c = myBlinker.blink;
+        led_2c = ~myBlinker.blink;
+        led_3c = myBlinker.blink;
+        led_4c = ~myBlinker.blink;
+        led_5c = myBlinker.blink;
+        led_6c = ~myBlinker.blink;
+        led_7c = myBlinker.blink;
+        led_8c = ~myBlinker.blink;
+        led_9c = myBlinker.blink;             
+        
+        edge_detector.in = ctr1.value;
+        dec_ctr1.inc = edge_detector.out;
+        seg.values = dec_ctr1.digits;
+        if (dec_ctr1.digits == {4d0, 4d0, 4d0, 4d4}) {
+          dec_ctr1.rst = 1;
+          state.d = state.SECONDS;
+        }
+        
+      state.SECONDS:
+        //handles state transitions depending on roundnumber
+        if (roundnumber.q == 3b000) {
+          state.d = state.ONE;
+        } else if (roundnumber.q == 3b001) {
+          state.d = state.TWO;
+        } else if (roundnumber.q == 3b010) {
+          state.d = state.THREE;
+        } else if (roundnumber.q == 3b011) {
+          state.d = state.FOUR;
+        } else if (roundnumber.q == 3b100) {
+          state.d = state.FIVE;
+        } else if (roundnumber.q == 3b101) {
+          state.d = state.FINAL;
+        }
+
+      state.ONE:
+        // 3
+        led_1a = 0;
+        led_2a = 0;
+        led_3a = 0;
+        led_4a = 1;
+        led_5a = 1;
+        led_6a = 1;
+        led_7a = 0;
+        led_8a = 0;
+        led_9a = 0;
+        
+        // 1
+        led_1b = 0;
+        led_2b = 0;
+        led_3b = 0;
+        led_4b = 0;
+        led_5b = 1;
+        led_6b = 0;
+        led_7b = 0;
+        led_8b = 0;
+        led_9b = 0;
+        
+        // 4
+        led_1c = 0;
+        led_2c = 0;
+        led_3c = 0;
+        led_4c = 1;
+        led_5c = 1;
+        led_6c = 1;
+        led_7c = 1;
+        led_8c = 0;
+        led_9c = 0;
+        
+        //displays current score
+        seg.values = storevalues.outA;    
+        
+        //selA: player 1's correct button
+        //selAWrongA: player 1's wrong button
+        //selAWrongB: player 1's wrong button
+        //selB: player 1's correct button
+        //selBWrongA: player 1's wrong button
+        //selBWrongB: player 1's wrong button
+          
+        if (mode.q == 2b10) {
+          storevalues.selA = button1c.out;
+          storevalues.selAWrongA = button1a.out;
+          storevalues.selAWrongB = button1b.out;
+          storevalues.selB = button2c.out;
+          storevalues.selBWrongA = button2a.out;
+          storevalues.selBWrongB = button2b.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        } else if (mode.q == 2b01) {
+          storevalues.selA = button1b.out;
+          storevalues.selAWrongA = button1a.out;
+          storevalues.selAWrongB = button1c.out;
+          storevalues.selB = button2b.out;
+          storevalues.selBWrongA = button2a.out;
+          storevalues.selBWrongB = button2c.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        } else if (mode.q == 2b00) {
+          storevalues.selA = button1a.out;
+          storevalues.selAWrongA = button1b.out;
+          storevalues.selAWrongB = button1c.out;
+          storevalues.selB = button2a.out;
+          storevalues.selBWrongA = button2b.out;
+          storevalues.selBWrongB = button2c.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        }        
+      
+      state.TWO:
+        // 9
+        led_1a = 1;
+        led_2a = 1;
+        led_3a = 1;
+        led_4a = 1;
+        led_5a = 1;
+        led_6a = 1;
+        led_7a = 1;
+        led_8a = 1;
+        led_9a = 1;
+        
+        // 5
+        led_1b = 0;
+        led_2b = 1;
+        led_3b = 0;
+        led_4b = 1;
+        led_5b = 1;
+        led_6b = 1;
+        led_7b = 0;
+        led_8b = 1;
+        led_9b = 0;
+        
+        // 8
+        led_1c = 1;
+        led_2c = 1;
+        led_3c = 1;
+        led_4c = 1;
+        led_5c = 0;
+        led_6c = 1;
+        led_7c = 1;
+        led_8c = 1;
+        led_9c = 1;
+        
+        //displays players' scores
+        seg.values = storevalues.outA;  
+          
+        if (mode.q == 2b10) {
+          storevalues.selA = button1a.out;
+          storevalues.selAWrongA = button1b.out;
+          storevalues.selAWrongB = button1c.out;
+          storevalues.selB = button2a.out;
+          storevalues.selBWrongA = button2b.out;
+          storevalues.selBWrongB = button2c.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        } else if (mode.q == 2b01) {
+          storevalues.selA = button1b.out;
+          storevalues.selAWrongA = button1a.out;
+          storevalues.selAWrongB = button1c.out;
+          storevalues.selB = button2b.out;
+          storevalues.selBWrongA = button2a.out;
+          storevalues.selBWrongB = button2c.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        } else if (mode.q == 2b00) {
+          storevalues.selA = button1c.out;
+          storevalues.selAWrongA = button1a.out;
+          storevalues.selAWrongB = button1b.out;
+          storevalues.selB = button2c.out;
+          storevalues.selBWrongA = button2a.out;
+          storevalues.selBWrongB = button2b.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        }
+        
+      state.THREE:
+        // 7
+        led_1a = 0;
+        led_2a = 1;
+        led_3a = 0;
+        led_4a = 1;
+        led_5a = 1;
+        led_6a = 1;
+        led_7a = 1;
+        led_8a = 1;
+        led_9a = 1;
+        
+        // 6
+        led_1b = 0;
+        led_2b = 0;
+        led_3b = 0;
+        led_4b = 1;
+        led_5b = 1;
+        led_6b = 1;
+        led_7b = 1;
+        led_8b = 1;
+        led_9b = 1;
+        
+        // 5
+        led_1c = 0;
+        led_2c = 0;
+        led_3c = 0;
+        led_4c = 0;
+        led_5c = 1;
+        led_6c = 1;
+        led_7c = 1;
+        led_8c = 1;
+        led_9c = 1;
+        
+        //displays players' scores
+        seg.values = storevalues.outA; 
+        
+        if (mode.q == 2b10) {
+          storevalues.selA = button1a.out;
+          storevalues.selAWrongA = button1b.out;
+          storevalues.selAWrongB = button1c.out;
+          storevalues.selB = button2a.out;
+          storevalues.selBWrongA = button2b.out;
+          storevalues.selBWrongB = button2c.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        } else if (mode.q == 2b01) {
+          storevalues.selA = button1c.out;
+          storevalues.selAWrongA = button1a.out;
+          storevalues.selAWrongB = button1b.out;
+          storevalues.selB = button2c.out;
+          storevalues.selBWrongA = button2a.out;
+          storevalues.selBWrongB = button2b.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        } else if (mode.q == 2b00) {
+          storevalues.selA = button1b.out;
+          storevalues.selAWrongA = button1a.out;
+          storevalues.selAWrongB = button1c.out;
+          storevalues.selB = button2b.out;
+          storevalues.selBWrongA = button2a.out;
+          storevalues.selBWrongB = button2c.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        }
+        
+      state.FOUR:
+        // 2
+        led_1a = 0;
+        led_2a = 0;
+        led_3a = 0;
+        led_4a = 0;
+        led_5a = 1;
+        led_6a = 1;
+        led_7a = 0;
+        led_8a = 0;
+        led_9a = 0;
+        
+        // 3
+        led_1b = 0;
+        led_2b = 0;
+        led_3b = 0;
+        led_4b = 1;
+        led_5b = 1;
+        led_6b = 1;
+        led_7b = 0;
+        led_8b = 0;
+        led_9b = 0;
+        
+        // 5
+        led_1c = 1;
+        led_2c = 0;
+        led_3c = 1;
+        led_4c = 0;
+        led_5c = 1;
+        led_6c = 0;
+        led_7c = 1;
+        led_8c = 0;
+        led_9c = 1;
+        
+        //displays players' scores
+        seg.values = storevalues.outA;  
+        
+        if (mode.q == 2b10) {
+          storevalues.selA = button1c.out;
+          storevalues.selAWrongA = button1a.out;
+          storevalues.selAWrongB = button1b.out;
+          storevalues.selB = button2c.out;
+          storevalues.selBWrongA = button2a.out;
+          storevalues.selBWrongB = button2b.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        } else if (mode.q == 2b01) {
+          storevalues.selA = button1a.out;
+          storevalues.selAWrongA = button1b.out;
+          storevalues.selAWrongB = button1c.out;
+          storevalues.selB = button2a.out;
+          storevalues.selBWrongA = button2b.out;
+          storevalues.selBWrongB = button2c.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        } else if (mode.q == 2b00) {
+          storevalues.selA = button1b.out;
+          storevalues.selAWrongA = button1a.out;
+          storevalues.selAWrongB = button1c.out;
+          storevalues.selB = button2b.out;
+          storevalues.selBWrongA = button2a.out;
+          storevalues.selBWrongB = button2c.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        }
+        
+      state.FIVE:
+        // 3
+        led_1a = 0;
+        led_2a = 0;
+        led_3a = 1;
+        led_4a = 0;
+        led_5a = 0;
+        led_6a = 0;
+        led_7a = 1;
+        led_8a = 0;
+        led_9a = 1;
+        
+        // 6
+        led_1b = 1;
+        led_2b = 0;
+        led_3b = 1;
+        led_4b = 0;
+        led_5b = 1;
+        led_6b = 1;
+        led_7b = 1;
+        led_8b = 0;
+        led_9b = 1;
+        
+        // 4
+        led_1c = 1;
+        led_2c = 0;
+        led_3c = 1;
+        led_4c = 0;
+        led_5c = 0;
+        led_6c = 0;
+        led_7c = 1;
+        led_8c = 0;
+        led_9c = 1;
+        
+        //displays players' scores
+        seg.values = storevalues.outA;   
+        
+        if (mode.q == 2b10) {
+          storevalues.selA = button1b.out;
+          storevalues.selAWrongA = button1a.out;
+          storevalues.selAWrongB = button1c.out;
+          storevalues.selB = button2b.out;
+          storevalues.selBWrongA = button2a.out;
+          storevalues.selBWrongB = button2c.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        } else if (mode.q == 2b01) {
+          storevalues.selA = button1a.out;
+          storevalues.selAWrongA = button1b.out;
+          storevalues.selAWrongB = button1c.out;
+          storevalues.selB = button2a.out;
+          storevalues.selBWrongA = button2b.out;
+          storevalues.selBWrongB = button2c.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        } else if (mode.q == 2b00) {
+          storevalues.selA = button1c.out;
+          storevalues.selAWrongA = button1a.out;
+          storevalues.selAWrongB = button1b.out;
+          storevalues.selB = button2c.out;
+          storevalues.selBWrongA = button2a.out;
+          storevalues.selBWrongB = button2b.out;
+          //transition to next round after a button has been hit
+          if (button1a.out || button1b.out || button1c.out || button2a.out || button2b.out || button2c.out) {
+            roundnumber.d = roundnumber.q + 3b001;
+            state.d = state.TRANSITION;
+          }
+        }
+        
+      state.FINAL:
+        //io_led[mode.q] = 8b11111111;
+        
+        /*
+        alu.a = storevalues.playerscore1;
+        alu.b = storevalues.playerscore2;
+        alu.alufn = CMPLT;      
+        io_led[2] = alu.alu;
+        if (storevalues.playerscore1 > storevalues.playerscore2) {
+          //displays 0001 if player 1 wins
+          seg.values = {4h0, 4h0, 4h0, 4h1};
+        } else if (storevalues.playerscore1 < storevalues.playerscore2) {
+          //displays 0002 if player 2 wins
+          seg.values = {4h0, 4h0, 4h0, 4h2};
+        } else {
+          //displays 5555 if draw
+          seg.values = {4h5, 4h5, 4h5, 4h5};
+        }
+        */
+        
+        //compare between player 1's score and player 2's scpre
+        alu.a = storevalues.playerscore1;
+        alu.b = storevalues.playerscore2;
+        alu.alufn = CMPEQ;
+        //check last digit of alu output
+        if (alu.alu[0]) {
+          //displays 5555 if draw
+          seg.values = {4h5, 4h5, 4h5, 4h5};
+          led_1a = 0;
+          led_2a = 0;
+          led_3a = 0;
+          led_4a = 0;
+          led_5a = 0;
+          led_6a = 0;
+          led_7a = 0;
+          led_8a = 0;
+          led_9a = 0;
+          
+          led_1b = 1;
+          led_2b = 1;
+          led_3b = 1;
+          led_4b = 1;
+          led_5b = 1;
+          led_6b = 1;
+          led_7b = 1;
+          led_8b = 1;
+          led_9b = 1;
+          
+          led_1c = 0;
+          led_2c = 0;
+          led_3c = 0;
+          led_4c = 0;
+          led_5c = 0;
+          led_6c = 0;
+          led_7c = 0;
+          led_8c = 0;
+          led_9c = 0;
+          
+          
+        } else {
+          //displays 0001 if player 1 wins
+          if (storevalues.playerscore1 > storevalues.playerscore2) {
+            seg.values = {4h0, 4h0, 4h0, 4h1};
+            led_1a = 1;
+            led_2a = 1;
+            led_3a = 1;
+            led_4a = 1;
+            led_5a = 1;
+            led_6a = 1;
+            led_7a = 1;
+            led_8a = 1;
+            led_9a = 1;
+            
+            led_1b = 0;
+            led_2b = 0;
+            led_3b = 0;
+            led_4b = 0;
+            led_5b = 0;
+            led_6b = 0;
+            led_7b = 0;
+            led_8b = 0;
+            led_9b = 0;
+            
+            led_1c = 0;
+            led_2c = 0;
+            led_3c = 0;
+            led_4c = 0;
+            led_5c = 0;
+            led_6c = 0;
+            led_7c = 0;
+            led_8c = 0;
+            led_9c = 0;
+                
+          } else {
+            //displays 0002 if player 2 wins
+            seg.values = {4h0, 4h0, 4h0, 4h2};
+            led_1a = 0;
+            led_2a = 0;
+            led_3a = 0;
+            led_4a = 0;
+            led_5a = 0;
+            led_6a = 0;
+            led_7a = 0;
+            led_8a = 0;
+            led_9a = 0;
+            
+            led_1b = 0;
+            led_2b = 0;
+            led_3b = 0;
+            led_4b = 0;
+            led_5b = 0;
+            led_6b = 0;
+            led_7b = 0;
+            led_8b = 0;
+            led_9b = 0;
+            
+            led_1c = 1;
+            led_2c = 1;
+            led_3c = 1;
+            led_4c = 1;
+            led_5c = 1;
+            led_6c = 1;
+            led_7c = 1;
+            led_8c = 1;
+            led_9c = 1;
+                
+          }
+          /*
+          alu.a = storevalues.playerscore1;
+          alu.b = storevalues.playerscore2;
+          alu.alufn = CMPLT;
+          if (alu.alu[0]) {
+            //displays 0002 if player 2 wins
+            seg.values ={4h0, 4h0, 4h0, 4h2};
+          } else {
+            seg.values = {4h0, 4h0, 4h0, 4h0};
+          }
+          */
+        }
+        
+        //resets game if pressed
+        if (buttonreset.out) {
+          alu.a = 0;
+          alu.b = 0;
+          alu.alufn = 0;
+          storevalues.resetButton = 1;
+          rst = 1;
+        }
+        
+      default:
+        seg.values = {4d0, 4d0, 4d0, 4d0};
+        state.d = state.START;
+    }            
+  }    
+}
