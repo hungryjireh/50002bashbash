@@ -309,15 +309,15 @@ module mojo_top (
 
       state.ONE:
         // 3
-        led_1a = 0;
+        led_1a = 1;
         led_2a = 0;
         led_3a = 0;
-        led_4a = 1;
+        led_4a = 0;
         led_5a = 1;
-        led_6a = 1;
+        led_6a = 0;
         led_7a = 0;
         led_8a = 0;
-        led_9a = 0;
+        led_9a = 1;
         
         // 1
         led_1b = 0;
@@ -331,15 +331,15 @@ module mojo_top (
         led_9b = 0;
         
         // 4
-        led_1c = 0;
+        led_1c = 1;
         led_2c = 0;
-        led_3c = 0;
-        led_4c = 1;
-        led_5c = 1;
-        led_6c = 1;
+        led_3c = 1;
+        led_4c = 0;
+        led_5c = 0;
+        led_6c = 0;
         led_7c = 1;
         led_8c = 0;
-        led_9c = 0;
+        led_9c = 1;
         
         //displays current score
         seg.values = storevalues.outA;    
@@ -466,36 +466,36 @@ module mojo_top (
         
       state.THREE:
         // 7
-        led_1a = 0;
-        led_2a = 1;
-        led_3a = 0;
+        led_1a = 1;
+        led_2a = 0;
+        led_3a = 1;
         led_4a = 1;
         led_5a = 1;
         led_6a = 1;
         led_7a = 1;
-        led_8a = 1;
+        led_8a = 0;
         led_9a = 1;
         
         // 6
-        led_1b = 0;
+        led_1b = 1;
         led_2b = 0;
-        led_3b = 0;
+        led_3b = 1;
         led_4b = 1;
-        led_5b = 1;
+        led_5b = 0;
         led_6b = 1;
         led_7b = 1;
-        led_8b = 1;
+        led_8b = 0;
         led_9b = 1;
         
         // 5
-        led_1c = 0;
+        led_1c = 1;
         led_2c = 0;
-        led_3c = 0;
+        led_3c = 1;
         led_4c = 0;
         led_5c = 1;
-        led_6c = 1;
+        led_6c = 0;
         led_7c = 1;
-        led_8c = 1;
+        led_8c = 0;
         led_9c = 1;
         
         //displays players' scores
@@ -541,26 +541,26 @@ module mojo_top (
         
       state.FOUR:
         // 2
-        led_1a = 0;
+        led_1a = 1;
         led_2a = 0;
         led_3a = 0;
         led_4a = 0;
-        led_5a = 1;
-        led_6a = 1;
+        led_5a = 0;
+        led_6a = 0;
         led_7a = 0;
         led_8a = 0;
-        led_9a = 0;
+        led_9a = 1;
         
         // 3
-        led_1b = 0;
+        led_1b = 1;
         led_2b = 0;
         led_3b = 0;
-        led_4b = 1;
+        led_4b = 0;
         led_5b = 1;
-        led_6b = 1;
+        led_6b = 0;
         led_7b = 0;
         led_8b = 0;
-        led_9b = 0;
+        led_9b = 1;
         
         // 5
         led_1c = 1;
@@ -616,13 +616,13 @@ module mojo_top (
         
       state.FIVE:
         // 3
-        led_1a = 0;
+        led_1a = 1;
         led_2a = 0;
-        led_3a = 1;
+        led_3a = 0;
         led_4a = 0;
-        led_5a = 0;
+        led_5a = 1;
         led_6a = 0;
-        led_7a = 1;
+        led_7a = 0;
         led_8a = 0;
         led_9a = 1;
         
@@ -630,8 +630,8 @@ module mojo_top (
         led_1b = 1;
         led_2b = 0;
         led_3b = 1;
-        led_4b = 0;
-        led_5b = 1;
+        led_4b = 1;
+        led_5b = 0;
         led_6b = 1;
         led_7b = 1;
         led_8b = 0;
