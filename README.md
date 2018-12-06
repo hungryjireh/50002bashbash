@@ -1,5 +1,5 @@
-# 50002 Bash Bash Bash
-SUTD 50.002: Bash Bash Bash
+# 50002 Bish Bash
+SUTD ISTD 50.002: Bish Bash
 
 A game built using the Mojo as part of SUTD's 50.002 Computational Structures module.
 
